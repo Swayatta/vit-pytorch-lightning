@@ -33,18 +33,17 @@ import hydra
 # Defining lightning module
 
 class LitVit(pl.LightningModule):
-    def __init__(self, vit, channel):
+    def __init__(self, vit):
         super().__init__()
         self.vit = vit      # obtaining the created pytorch model
-        self.channel = channel
         self.loss = nn.CrossEntropyLoss()   # defining the loss
 
     def training_step(self, batch, batch_idx):
         # training_step defines the train loop.
         # it is independent of forward
         x,y = batch
-        b,c,img_h,img_w = x.shape   # obtaining shape from the image
-        x = x.view(b,1,img_h, img_w, self.channel)   # transforming the image to proper shape to facilitate training
+        b,c,img_h,img_w = x.shape   # obtaining shape from the image - batch,channel, img_height, img_width
+        x = x.view(b,1,img_h, img_w, c)   # transforming the image to proper shape to facilitate training
         predictions = self.vit(x)    # obtaining the output from the model
         loss = self.loss(predictions,y)     # Calculating the loss
         
@@ -56,7 +55,7 @@ class LitVit(pl.LightningModule):
         # this is the validation loop, similar to the train loop
         x,y = batch
         b,c,img_h,img_w = x.shape
-        x = x.view(b,1,img_h, img_w, self.channel)
+        x = x.view(b,1,img_h, img_w, c)
         predictions = self.vit(x)
         val_loss = self.loss(predictions,y)
         
@@ -66,7 +65,7 @@ class LitVit(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         x,y = batch
         b,c,img_h,img_w = x.shape
-        x = x.view(b,1,img_h, img_w, self.channel)
+        x = x.view(b,1,img_h, img_w, c)
         predictions = self.vit(x)
         test_loss = self.loss(predictions,y)
         
@@ -83,7 +82,6 @@ def train(conf: DictConfig):
     batch_size = conf['batch_size']
     height_of_patch = conf['height_of_patch']
     width_of_patch = conf['width_of_patch']
-    channel = conf['channel']
     num_blocks = conf['num_blocks']
     dim = conf['dim']
     mlp_dim = conf['mlp_dim']
@@ -93,7 +91,7 @@ def train(conf: DictConfig):
     devices = conf['devices']
     epochs = conf['epochs']
     test = conf['test']
-    
+
     train_set = MNIST(os.getcwd(), download=True, train = True, transform=ToTensor())
     test_set = MNIST(os.getcwd(), download=True, train = False, transform=ToTensor())
 
@@ -119,9 +117,13 @@ def train(conf: DictConfig):
     subsample_valid_indices = torch.randperm(len(valid_set))[:K]
     valid_loader = utils.data.DataLoader(valid_set, batch_size=batch_size, sampler=utils.data.SubsetRandomSampler(subsample_valid_indices))
 
+    dataiter = iter(train_loader)
+    images, labels = dataiter.next()
+    _,channel, _, _ = images.shape
+
     # # The main pytorch model
     vit = ViT(batch_size, height_of_patch, width_of_patch, channel, num_blocks, dim, mlp_dim, attention_head_size, num_attention_heads, num_of_labels)
-    lightvit = LitVit(vit, channel)
+    lightvit = LitVit(vit)
 
     # train the model (hint: here are some helpful Trainer arguments for rapid idea iteration)
     trainer = pl.Trainer(limit_train_batches = batch_size, max_epochs=epochs, devices = devices, accelerator= accelerator)

@@ -1,0 +1,14 @@
+batch_size : 40
+height_of_patch : 2
+width_of_patch : 2
+channel : 1
+num_blocks : 4
+dim : 16
+mlp_dim : 9
+attention_head_size : 8
+num_attention_heads : 12
+num_of_labels : 2
+accelerator : 'cpu'
+devices : 1
+epochs : 2
+test : True
